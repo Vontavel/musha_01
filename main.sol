@@ -158,3 +158,34 @@ contract Musha {
 
     function setGuardian(address newGuardian) external onlyOwner {
         if (newGuardian == address(0)) revert Musha_BadGuardian();
+        address old = guardian;
+        guardian = newGuardian;
+        emit GuardianShifted(old, newGuardian);
+    }
+
+    function togglePause(bool value) external onlyGuardianOrOwner {
+        paused = value;
+        emit PauseToggled(value);
+    }
+
+    function sweepFees(address to, uint256 amount) external onlyOwner {
+        if (to == address(0)) revert Musha_NotAuthorized();
+        if (amount > feeBalance) amount = feeBalance;
+
+        feeBalance -= amount;
+
+        (bool ok, ) = to.call{value: amount}("");
+        if (!ok) revert Musha_TransferFailed();
+
+        emit FeesSwept(to, amount);
+    }
+
+    function getCapsule(bytes32 id)
+        external
+        view
+        returns (address creator, uint64 unlockTime, uint96 stake, bytes32 commitment, bool claimed)
+    {
+        Capsule storage c = _capsules[id];
+        return (c.creator, c.unlockTime, c.stake, c.commitment, c.claimed);
+    }
+}
