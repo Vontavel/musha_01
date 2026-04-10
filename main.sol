@@ -62,3 +62,35 @@ contract Musha {
     modifier onlyGuardianOrOwner() {
         if (msg.sender != owner && msg.sender != guardian) revert Musha_NotAuthorized();
         _;
+    }
+
+    modifier notPaused() {
+        if (paused) revert Musha_Paused();
+        _;
+    }
+
+    constructor() {
+        owner = msg.sender;
+        guardian = msg.sender;
+        emit GuardianShifted(address(0), msg.sender);
+    }
+
+    receive() external payable {
+        revert("Musha: direct ETH rejected");
+    }
+
+    fallback() external payable {
+        revert("Musha: unknown call");
+    }
+
+    /**
+     * Forge a capsule with:
+     * - `id`: unique identifier chosen by the caller.
+     * - `commitment`: keccak256(abi.encodePacked(secret, intendedClaimer)).
+     * - `unlockTime`: UNIX timestamp when cracking becomes valid.
+     *
+     * ETH sent must be >= FORGE_FEE_WEI + stake, stake >= MIN_STAKE_WEI.
+     * Excess ETH (if any) becomes additional stake (not fee).
+     */
+    function createCapsule(bytes32 id, bytes32 commitment, uint64 unlockTime) external payable notPaused {
+        if (commitment == bytes32(0)) revert Musha_ZeroCommitment();
