@@ -94,3 +94,35 @@ contract Musha {
      */
     function createCapsule(bytes32 id, bytes32 commitment, uint64 unlockTime) external payable notPaused {
         if (commitment == bytes32(0)) revert Musha_ZeroCommitment();
+        if (_capsules[id].creator != address(0)) revert Musha_AlreadyExists(id);
+
+        if (msg.value < FORGE_FEE_WEI + MIN_STAKE_WEI) {
+            revert Musha_FeeTooLow(msg.value, FORGE_FEE_WEI + MIN_STAKE_WEI);
+        }
+
+        uint256 stake = msg.value - FORGE_FEE_WEI;
+        if (stake < MIN_STAKE_WEI) revert Musha_FeeTooLow(msg.value, FORGE_FEE_WEI + MIN_STAKE_WEI);
+
+        feeBalance += FORGE_FEE_WEI;
+
+        _capsules[id] = Capsule({
+            creator: msg.sender,
+            unlockTime: unlockTime,
+            stake: uint96(stake),
+            commitment: commitment,
+            claimed: false
+        });
+
+        emit CapsuleForged(id, msg.sender, unlockTime, stake, commitment);
+    }
+
+    /**
+     * Crack a capsule after `unlockTime` by providing:
+     * - `secret`: arbitrary bytes32 chosen offchain.
+     * Commitment rule: keccak256(abi.encodePacked(secret, msg.sender)) must match.
+     */
+    function crackCapsule(bytes32 id, bytes32 secret) external notPaused {
+        Capsule storage c = _capsules[id];
+        if (c.creator == address(0)) revert Musha_ZeroCommitment();
+        if (c.claimed) revert Musha_AlreadyClaimed();
+        if (block.timestamp < c.unlockTime) revert Musha_TooEarly(c.unlockTime);
