@@ -30,3 +30,35 @@ contract Musha {
     event CapsuleCracked(bytes32 indexed id, address indexed claimer, bytes32 secretHash);
     event CapsuleScrapped(bytes32 indexed id, address indexed creator);
     event GuardianShifted(address indexed oldGuardian, address indexed newGuardian);
+    event PauseToggled(bool paused);
+    event FeesSwept(address indexed to, uint256 amount);
+
+    // ----------- Capsule storage -----------
+    struct Capsule {
+        address creator;
+        uint64 unlockTime;
+        uint96 stake; // stake excluding fee
+        bytes32 commitment; // keccak256(abi.encodePacked(secret, claimer))
+        bool claimed;
+    }
+
+    // ----------- Access control -----------
+    address public immutable owner;
+    address public guardian;
+    bool public paused;
+
+    // ----------- Economics -----------
+    uint256 public constant FORGE_FEE_WEI = 270_001_337_000_000; // 0.000270001337 ETH
+    uint256 public constant MIN_STAKE_WEI = 3_000_000_000_000_000; // 0.003 ETH
+
+    uint256 public feeBalance;
+    mapping(bytes32 => Capsule) private _capsules;
+
+    modifier onlyOwner() {
+        if (msg.sender != owner) revert Musha_NotAuthorized();
+        _;
+    }
+
+    modifier onlyGuardianOrOwner() {
+        if (msg.sender != owner && msg.sender != guardian) revert Musha_NotAuthorized();
+        _;
